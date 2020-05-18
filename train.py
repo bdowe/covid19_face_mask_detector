@@ -1,3 +1,5 @@
+# https://www.pyimagesearch.com/2020/05/04/covid-19-face-mask-detector-with-opencv-keras-tensorflow-and-deep-learning/
+
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.layers import AveragePooling2D, Dropout, Flatten, Dense, Input
@@ -5,7 +7,6 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
-from tensorflow.keras.utils import to_categorical
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
@@ -44,11 +45,93 @@ for imagePath in imagePaths:
 	image = preprocess_input(image)
 
 	# update data and labels lists
-	data.appen(image)
+	data.append(image)
 	labels.append(label)
 
 # convert data and labels (features and targets) to numpy arrays
 data = np.array(data, dtype="float32")
 labels = np.array(labels)
+
+# binarize labels (only 2 classes)
+lb = LabelBinarizer()
+labels = lb.fit_transform(labels)
+
+# split data into train and tests sets (80/20)
+trainX, testX, trainY, testY = train_test_split(
+	data, 
+	labels,
+	test_size=0.20,
+	stratify=labels,
+	random_state=42
+)
+
+# instantiate train image generator for data augmentation
+aug = ImageDataGenerator(
+	rotation_range=20,
+	zoom_range=0.15,
+	width_shift_range=0.2,
+	height_shift_range=0.2,
+	shear_range = 0.15,
+	horizontal_flip = True,
+	fill_mode="nearest"
+)
+
+# laod MobileNetV2 net, leaving off head fc layer sets
+baseModel = MobileNetV2(
+	weights="imagenet",
+	include_top=False,
+	input_tensor=Input(shape=(224, 224, 3))
+)
+
+# construct model head that will be appended to the base model
+headModel = baseModel.output
+headModel = AveragePooling2D(pool_size=(7,7))(headModel)
+headModel = Flatten(name="flatten")(headModel)
+headModel = Dense(128, activation="relu")(headModel)
+headModel = Dropout(0.5)(headModel)
+headModel = Dense(1, activation="sigmoid")(headModel)
+
+# appead head FC model to base model
+model = Model(inputs=baseModel.input, outputs=headModel)
+
+# loop over layers in base model and freeze them so they won't be updated during training
+for layer in baseModel.layers:
+	layer.trainable = False
+
+# compile model
+print("[INFO] compiling model...")
+opt = Adam(lr=INIT_LR, decay=INIT_LR / EPOCHS)
+model.compile(
+	loss="binary_crossentropy", 
+	optimizer=opt,
+	metrics=["accuracy"]
+)
+
+# train the head of the network
+print("[INFO] training head...")
+H = model.fit(
+	aug.flow(trainX, trainY, batch_size=BS),
+	steps_per_epoch=len(trainX) // BS,
+	validation_data=(testX, testY),
+	validation_steps=len(testX) // BS,
+	epochs=EPOCHS
+)
+
+# make predictions on the testing set
+print("[INFO] evaluating network...")
+predIxs = model.predict(testX, batch_size=BS)
+
+# get prediction index with highest probability as prediction
+predIxs = np.argmax(predIxs, axis=1)
+
+# show classification report
+print(classification_report(testY.argmax(axis=1), predIxs, target_names=lb.classes_))
+
+# serialize model to disk
+print("[INFO] saving mask detector model...")
+model.save(args["model"], save_format="h5")
+
+
+
 
 
