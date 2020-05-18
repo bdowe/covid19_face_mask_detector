@@ -24,3 +24,20 @@ net = cv2.dnn.readNet(prototxtPath, weightsPath)
 # load face mask detector model from disk
 print("[INFO] loading face mask detector model...")
 model = load_model(args["model"])
+
+# load input image from disk, clone it, grab spatial dimensions
+image = cv2.imread(args["image"])
+orig = image.copy()
+h, w = image.shape[:2]
+
+# construct a blob from image
+blob = cv2.dnn.blobFromImage(image, 1.0, (300, 300), (104.0, 177.0, 123.0))
+
+# pass blob through network and obtain face detections
+print("[INFO] computing face detections...")
+net.setInput(blob)
+detections = net.forward()
+
+
+
+
