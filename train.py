@@ -27,3 +27,28 @@ INIT_LR = 1e-4
 EPOCHS = 20
 BS = 32
 
+# grab list of images, then initialize list of data and class images
+print("[INFO] loading_img...")
+imagePaths = list(paths.list_images(args['dataset']))
+data = []
+labels = []
+
+# loop over image paths
+for imagePath in imagePaths:
+	# extract class label from filename
+	label = imagePath.split(os.path.sep)[-2]
+
+	# load input image and preprocess it (224x224)
+	image = load_img(imagePath, target_size=(224, 224))
+	image = img_to_array(image)
+	image = preprocess_input(image)
+
+	# update data and labels lists
+	data.appen(image)
+	labels.append(label)
+
+# convert data and labels (features and targets) to numpy arrays
+data = np.array(data, dtype="float32")
+labels = np.array(labels)
+
+
