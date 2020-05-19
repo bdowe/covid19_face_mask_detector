@@ -38,6 +38,42 @@ print("[INFO] computing face detections...")
 net.setInput(blob)
 detections = net.forward()
 
+# loop over face detections
+for i in range(detections.shape[2]):
+	# extract confidence for the detection
+	confidence = detections[0, 0, i, 2]
 
+	# filter out weak detections (below min confidence threshold)
+	box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+	startX, startY, endX, endY = box.astype(int)
 
+	# set bounding boxes to fall within image frame dimensions
+	startX, startY = max(0, startX), max(0, startY)
+	endX, endY = min(w-1, endX), min(h-1, endY)
+
+	# extract face ROI (region of interest), convert from BGR to RGB channel ordering, resize to 224X224, preprocess
+	face = image[startY:endY, startX:endX]
+	face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
+	face = cv2.resize(face, (224, 224))
+	face = img_to_array(face)
+	face = preprocess_input(face)
+	np.expand_dims(face, axis=0)
+
+	# pass face through the model to determine if face has mask
+	mask, withoutMask = model.predict(face[0])
+
+	# determine class label (and color to draw bounding box and text)
+	label = "Mask" if mask > withoutMask else "No Mask"
+	color = (0, 255, 0) if mask > withoutMask else (0, 0, 255)
+
+	# include probability in label
+	label = "{}: {:.2f}%".format(label, max(mask, withoutMask) * 100)
+
+	# display label and bb rect on output image frame
+	cv2.putText(image, label, (startX, startY-10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 2)
+	cv2.rectangle(image, (startX, startY), (endX, endY), color, 2)
+
+# show output image
+cv2.imshow("Output", image)
+cv2.waitKey(0)
 
