@@ -9,6 +9,7 @@ import imutils
 import time
 import cv2
 import os
+from helpers import detect_and_predict_mask
 
 # construct the argument parser and parse args
 ap = argparse.ArgumentParser()
